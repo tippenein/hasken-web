@@ -28,9 +28,10 @@ executable hasken-web
     , servant >= 0.4
     , servant-client >= 0.4
     , servant-server >= 0.4
-    , time
+    , either
     , transformers
     , aeson
+    , time
     , warp
     , wai
   default-language:    Haskell2010

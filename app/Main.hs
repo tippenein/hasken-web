@@ -3,29 +3,24 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Main where
+module Main
+where
 
 import Data.Aeson
 import Data.Time
+import Data.List
+import Servant
 import GHC.Generics
 import Network.Wai
 import Network.Wai.Handler.Warp
-import Servant
-import Control.Monad
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Either
 
-type DocAPI = "users" :> Get '[JSON] [Doc]
+type DocAPI = "docs" :> Capture "tag" String :> Get '[JSON] [Doc]
 
 data Doc = Doc
-  { title :: String
-  , content :: String
+  { url :: String
   , tags :: [String]
   } deriving (Eq, Show, Generic)
-
--- orphan ToJSON instance for Day. necessary to derive one for Doc
-instance ToJSON Day where
-  -- display a day in YYYY-mm-dd format
-  toJSON d = toJSON (showGregorian d)
 
 instance ToJSON Doc
 
@@ -33,15 +28,20 @@ docAPI :: Proxy DocAPI
 docAPI = Proxy
 
 server :: Server DocAPI
-server = return docs
+server = docs
+  where docs :: String -> EitherT ServantErr IO [Doc]
+        docs t = return $ queryDocs t
 
-docs :: [Doc]
-docs = [ Doc "Isaac Newton" "derp" ["tag1", "tag2"] ]
+queryDocs t = filter (match t . tags) allDocs
+
+match :: String -> [String] -> Bool
+match t = any (isInfixOf t)
+
+allDocs :: [Doc]
+allDocs = [ Doc "http://i.imgur.com/dvDHMQV.gif" ["tag1", "tag2"] ]
 
 app :: Application
 app = serve docAPI server
 
-getCurrentDate = liftM utctDay getCurrentTime
-
 main :: IO ()
-main = run 8000 app
+main = run 8081 app
