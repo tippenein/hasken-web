@@ -1,10 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Main
-where
+module Main where
 
 import Data.Aeson
 import Data.Time
@@ -15,33 +15,61 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Control.Monad.Trans.Either
 
-type DocAPI = "docs" :> Capture "tag" String :> Get '[JSON] [Doc]
+type DocAPI =
+    -- GET /docs/:tag
+         "docs" :> QueryParam "tag" String :> Get '[JSON] [Doc]
+    -- POST /docs
+    :<|> "docs" :> ReqBody '[JSON] Doc :> Post '[JSON] Doc
+    -- -- DELETE /docs/:id
+    -- :<|> "docs" :> Capture "docId" String :> Delete
 
 data Doc = Doc
   { url :: String
   , tags :: [String]
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Generic)
 
 instance ToJSON Doc
+instance FromJSON Doc
+
+instance Show Doc where
+  show (Doc c ts) = show c
 
 docAPI :: Proxy DocAPI
 docAPI = Proxy
 
 server :: Server DocAPI
-server = docs
-  where docs :: String -> EitherT ServantErr IO [Doc]
-        docs t = return $ queryDocs t
+server = docsByTag :<|> postDocH -- :<|> deleteDocH
+  where docsByTag :: Maybe String -> EitherT ServantErr IO [Doc]
+        docsByTag Nothing = return allDocs
+        docsByTag (Just t) = return $ queryDocs t
 
+        postDocH :: Doc -> EitherT ServantErr IO Doc
+        postDocH = return
+
+        -- deleteDocH _ = return ()
+
+queryDocs :: String -> [Doc]
 queryDocs t = filter (match t . tags) allDocs
 
 match :: String -> [String] -> Bool
 match t = any (isInfixOf t)
 
 allDocs :: [Doc]
-allDocs = [ Doc "http://i.imgur.com/dvDHMQV.gif" ["tag1", "tag2"] ]
+allDocs = [
+    Doc "http://i.imgur.com/dvDHMQV.gif" ["tag1", "tag2"],
+    Doc "http://i.imgur.com/dvDHMQV.gif" ["Shturf", "gif"],
+    Doc "http://i.imgur.com/dvDHMQV.gif" ["polar", "winning"],
+    Doc "http://i.imgur.com/dvDHMQV.gif" ["bear-polar", "penguin"]
+    ]
 
 app :: Application
 app = serve docAPI server
 
+runServer :: Port -> IO ()
+runServer port = run port app
+
+-- Put this all to work!
 main :: IO ()
-main = run 8081 app
+main = do
+    putStrLn "starting app on port 8081"
+    runServer 8081
